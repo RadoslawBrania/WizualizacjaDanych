@@ -128,7 +128,7 @@ int main()
 	GLint colAttrib = glGetAttribLocation(shaderProgram, "color");
 	glEnableVertexAttribArray(colAttrib);
 	glVertexAttribPointer(colAttrib, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat)));
-
+	GLenum primitiveType = GL_POLYGON;
 	// Rozpoczêcie pêtli zdarzeñ
 	bool running = true;
 	while (running) {
@@ -140,22 +140,26 @@ int main()
 				break;
 			case sf::Event::KeyPressed:
 				if (windowEvent.key.code >= sf::Keyboard::Num1 && windowEvent.key.code <= sf::Keyboard::Num9) {
-					ammVertices = windowEvent.key.code - sf::Keyboard::Num1 + 1; // od 1 do 9
-					setVerticies(vertices, ammVertices); // Zaktualizuj wierzcho³ki
-
-					// Zaktualizuj VBO z nowymi danymi
-					glBindBuffer(GL_ARRAY_BUFFER, vbo);
-					glBufferData(GL_ARRAY_BUFFER, ammVertices * 6 * sizeof(GLfloat), vertices, GL_DYNAMIC_DRAW);
+					if (windowEvent.key.code >= sf::Keyboard::Num1 && windowEvent.key.code <= sf::Keyboard::Num9) {
+						int key = windowEvent.key.code - sf::Keyboard::Num1;
+						GLenum types[] = { GL_POLYGON,GL_POINTS, GL_LINES, GL_LINE_STRIP, GL_LINE_LOOP, GL_TRIANGLES,GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN, GL_QUADS, GL_QUAD_STRIP };
+						primitiveType = types[key % 10]; // Zmiana prymitywu
+					}
 				}
 				break;
 			}
 
 		}
+		int mouseY = sf::Mouse::getPosition(window).y;
+		ammVertices = std::max(3, int(10 * mouseY / window.getSize().y)%9);
+		setVerticies(*&vertices, ammVertices);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBufferData(GL_ARRAY_BUFFER, ammVertices * 6 * sizeof(GLfloat), *&vertices, GL_DYNAMIC_DRAW);
 		// Nadanie scenie koloru czarnego
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		// Narysowanie trójk¹ta na podstawie 3 wierzcho³ków
-		glDrawArrays(GL_POLYGON, 0, ammVertices);
+		glDrawArrays(primitiveType, 0, ammVertices);
 		// Wymiana buforów tylni/przedni
 		window.display();
 	}
