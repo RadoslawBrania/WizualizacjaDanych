@@ -67,7 +67,6 @@ void setVerticies(GLfloat *vertices, int ammVertices) {
 		vertices[i * 6 + 3] = (float)i / ammVertices;
 		vertices[i * 6 + 4] = 1.0f - (float)i / ammVertices;
 		vertices[i * 6 + 5] = (float)(i % 2);
-		std::cout << vertices[i * 6] <<"  " << vertices[i * 6 + 1] << std::endl;
 	}
 }
 
@@ -95,10 +94,9 @@ int main()
 	glGenBuffers(1, &vbo);
 	int ammVertices = 3;
 	GLfloat vertices[ 15 * 6];
-	std::cout << sizeof(vertices);
 	setVerticies(*&vertices, ammVertices);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, ammVertices * 6 * sizeof(GLfloat), *&vertices, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, ammVertices * 6 * sizeof(GLfloat), *&vertices, GL_STATIC_DRAW);
 
 	// Utworzenie i skompilowanie shadera wierzcho³ków
 	GLuint vertexShader =
@@ -154,7 +152,7 @@ int main()
 		ammVertices = std::max(3, int(10 * mouseY / window.getSize().y)%9);
 		setVerticies(*&vertices, ammVertices);
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferData(GL_ARRAY_BUFFER, ammVertices * 6 * sizeof(GLfloat), *&vertices, GL_DYNAMIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, ammVertices * 6 * sizeof(GLfloat), *&vertices, GL_STATIC_DRAW);
 		// Nadanie scenie koloru czarnego
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
