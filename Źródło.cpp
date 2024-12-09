@@ -127,6 +127,18 @@ void setVerticies(GLfloat *vertices, int ammVertices) {
 	}
 }
 
+
+void setModelColor(GLuint shaderProgram, float r, float g, float b) {
+	// ZnajdŸ lokalizacjê uniformu w shaderze
+	GLint colorLocation = glGetUniformLocation(shaderProgram, "objectColor");
+	if (colorLocation == -1) {
+		std::cerr << "Failed to find uniform 'objectColor' in shader program." << std::endl;
+		return;
+	}
+	// Ustaw kolor (RGB)
+	glUniform3f(colorLocation, r, g, b);
+}
+
 unsigned int loadTexture(const std::string& texturePath) {
 	unsigned int textureID;
 	glGenTextures(1, &textureID);
@@ -167,13 +179,13 @@ unsigned int loadTexture(const std::string& texturePath) {
 	return textureID;
 }
 
-struct Vertex {
+struct Vertice {
 	glm::vec3 position;
 	glm::vec3 normal;
 	glm::vec2 texCoord;
 };
 
-bool loadOBJ(const std::string& path, std::vector<Vertex>& vertices, std::vector<unsigned int>& indices) {
+bool loadObj(const std::string& path, std::vector<Vertice>& vertices, std::vector<unsigned int>& indices,std::string skip) {
 	std::ifstream file(path);
 	if (!file.is_open()) {
 		std::cerr << "Failed to open OBJ file: " << path << std::endl;
@@ -186,31 +198,43 @@ bool loadOBJ(const std::string& path, std::vector<Vertex>& vertices, std::vector
 
 	std::string line;
 	while (std::getline(file, line)) {
+	
 		std::istringstream ss(line);
 		std::string prefix;
 		ss >> prefix;
+		if(prefix=="o") {
+			ss >> prefix; 
+			if (prefix == skip) {
+				while (std::getline(file, line)) {
+					std::istringstream ss2(line);
+					std::string prefix2;
+					ss2 >> prefix2;
+					if (prefix == "o") break;
+				}
+			}
 
-		if (prefix == "v") { // Wierzcho³ek
+		}
+		if (prefix == "v") { 
 			glm::vec3 pos;
 			ss >> pos.x >> pos.y >> pos.z;
 			temp_positions.push_back(pos);
 		}
-		else if (prefix == "vn") { // Normalne
+		else if (prefix == "vn") { 
 			glm::vec3 normal;
 			ss >> normal.x >> normal.y >> normal.z;
 			temp_normals.push_back(normal);
 		}
-		else if (prefix == "vt") { // Tekstura
+		else if (prefix == "vt") { 
 			glm::vec2 tex;
 			ss >> tex.x >> tex.y;
 			temp_texCoords.push_back(tex);
 		}
-		else if (prefix == "f") { // Œciany
+		else if (prefix == "f") { 
 			unsigned int posIdx[3], texIdx[3], normIdx[3];
-			char slash; // do obs³ugi np. 1/2/3
+			char slash;
 			for (int i = 0; i < 3; i++) {
 				ss >> posIdx[i] >> slash >> texIdx[i] >> slash >> normIdx[i];
-				Vertex vertex;
+				Vertice vertex;
 				vertex.position = temp_positions[posIdx[i] - 1];
 				vertex.texCoord = temp_texCoords[texIdx[i] - 1];
 				vertex.normal = temp_normals[normIdx[i] - 1];
@@ -221,6 +245,38 @@ bool loadOBJ(const std::string& path, std::vector<Vertex>& vertices, std::vector
 	}
 	file.close();
 	return true;
+}
+void setupVao(GLuint vaoChair, GLuint vboChair, GLuint eboChair, GLuint shaderProgram, std::vector<Vertice> chairVertices, std::vector<unsigned int> chairIndices) {
+
+	// Za³aduj dane do VBO dla krzes³a
+	glBindVertexArray(vaoChair);
+
+	// Za³aduj dane wierzcho³ków do VBO
+	glBindBuffer(GL_ARRAY_BUFFER, vboChair);
+	glBufferData(GL_ARRAY_BUFFER, chairVertices.size() * sizeof(Vertice), &chairVertices[0], GL_STATIC_DRAW);
+
+	// Za³aduj indeksy do EBO
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboChair);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, chairIndices.size() * sizeof(unsigned int), &chairIndices[0], GL_STATIC_DRAW);
+
+	// WskaŸniki do atrybutów wierzcho³ków dla krzes³a
+	GLint posAttribChair = glGetAttribLocation(shaderProgram, "position");
+	glEnableVertexAttribArray(posAttribChair);
+	glVertexAttribPointer(posAttribChair, 3, GL_FLOAT, GL_FALSE, sizeof(Vertice), (void*)offsetof(Vertice, position));
+
+	// Wektory normalne
+	GLint norAttribChair = glGetAttribLocation(shaderProgram, "aNormal");
+	glEnableVertexAttribArray(norAttribChair);
+	glVertexAttribPointer(norAttribChair, 3, GL_FLOAT, GL_FALSE, sizeof(Vertice), (void*)offsetof(Vertice, normal));
+
+	// Wspó³rzêdne tekstur
+	GLint texAttribChair = glGetAttribLocation(shaderProgram, "aTexCoord");
+	glEnableVertexAttribArray(texAttribChair);
+	glVertexAttribPointer(texAttribChair, 2, GL_FLOAT, GL_FALSE, sizeof(Vertice), (void*)offsetof(Vertice, texCoord));
+
+	// Zakoñcz konfiguracjê VAO dla krzes³a
+	glBindVertexArray(0);
+
 }
 
 int main()
@@ -339,15 +395,26 @@ int main()
 	//-0.5f, 0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f
 	//};
 	// Za³adowanie tekstury
-	unsigned int texture1;
-	glGenTextures(1, &texture1);
-	glBindTexture(GL_TEXTURE_2D, texture1);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	loadTexture("bitmapbmp.bmp");
+	// Generowanie figury
+	std::vector<Vertice> chairVertices;
+	std::vector<unsigned int> chairIndices;
+	if (!loadObj("chair2.obj", chairVertices, chairIndices,"Plane")) {
+		std::cerr << "Failed to load chair model" << std::endl;
+		return -1;
+	}
+	std::vector<Vertice> tableVertices;
+	std::vector<unsigned int> tableIndices;
+	if (!loadObj("table.obj", tableVertices, tableIndices,"")) {
+		std::cerr << "Failed to load chair model" << std::endl;
+		return -1;
+	}
 
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, ammVertices * POINTS * sizeof(GLfloat), *&vertices, GL_STATIC_DRAW);
+	/*std::vector<Vertex> tableVertices;
+	std::vector<unsigned int> tableIndices;
+	if (!loadOBJ("models/simple_table.obj", tableVertices, tableIndices)) {
+		std::cerr << "Failed to load table model" << std::endl;
+		return -1;
+	}*/
 
 
 	// Utworzenie i skompilowanie shadera wierzcho³ków
@@ -371,8 +438,15 @@ int main()
 	glLinkProgram(shaderProgram);
 	glUseProgram(shaderProgram);
 
-	glm::mat4 model = glm::mat4(1.0f);
-	model = glm::rotate(model, glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	//Stary model
+	//glm::mat4 model = glm::mat4(1.0f);
+	//model = glm::rotate(model, glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	glm::mat4 chairModel = glm::mat4(1.0f);
+	chairModel = glm::translate(chairModel, glm::vec3(1.5f, 0.0f, 0.0f));
+	chairModel = glm::rotate(chairModel, glm::radians(-180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 tableModel = glm::mat4(1.0f);
+	tableModel = glm::translate(tableModel, glm::vec3(1.5f, 0.0f, 0.0f));
+	tableModel = glm::rotate(tableModel, glm::radians(-180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 	glm::mat4 view;
 	view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f),
@@ -382,7 +456,7 @@ int main()
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 800.0f / 800.0f, 0.06f, 100.0f);
 
 	GLint uniTrans = glGetUniformLocation(shaderProgram, "model");
-	glUniformMatrix4fv(uniTrans, 1, GL_FALSE, glm::value_ptr(model));
+	//glUniformMatrix4fv(uniTrans, 1, GL_FALSE, glm::value_ptr(model));
 
 	GLint uniView = glGetUniformLocation(shaderProgram, "view");
 	glUniformMatrix4fv(uniView, 1, GL_FALSE, glm::value_ptr(view));
@@ -390,7 +464,48 @@ int main()
 	GLint uniProj = glGetUniformLocation(shaderProgram, "proj");
 	glUniformMatrix4fv(uniProj, 1, GL_FALSE, glm::value_ptr(proj));
 
+	// Utworzenie VAO, VBO i EBO dla krzes³a 
+	GLuint vaoChair, vboChair, eboChair;
+	glGenVertexArrays(1, &vaoChair);
+	glGenBuffers(1, &vboChair);
+	glGenBuffers(1, &eboChair);
+	setupVao(vaoChair,vboChair,eboChair,shaderProgram,chairVertices,chairIndices);
+	
+	// Utworzenie VAO, VBO i EBO dla krzes³a 
+	GLuint vaoTable, vboTable, eboTable;
+	glGenVertexArrays(1, &vaoTable);
+	glGenBuffers(1, &vboTable);
+	glGenBuffers(1, &eboTable);
+	setupVao(vaoTable, vboTable, eboTable, shaderProgram, tableVertices, tableIndices);
 
+	//// Za³aduj dane do VBO dla krzes³a
+	//glBindVertexArray(vaoTable);
+
+	//// Za³aduj dane wierzcho³ków do VBO
+	//glBindBuffer(GL_ARRAY_BUFFER, vboTable);
+	//glBufferData(GL_ARRAY_BUFFER, tableVertices.size() * sizeof(Vertex), &chairVertices[0], GL_STATIC_DRAW);
+
+	//// Za³aduj indeksy do EBO
+	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eboChair);
+	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, chairIndices.size() * sizeof(unsigned int), &chairIndices[0], GL_STATIC_DRAW);
+
+	//// WskaŸniki do atrybutów wierzcho³ków dla krzes³a
+	//GLint posAttribChair = glGetAttribLocation(shaderProgram, "position");
+	//glEnableVertexAttribArray(posAttribChair);
+	//glVertexAttribPointer(posAttribChair, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
+
+	//// Wektory normalne
+	//GLint norAttribChair = glGetAttribLocation(shaderProgram, "aNormal");
+	//glEnableVertexAttribArray(norAttribChair);
+	//glVertexAttribPointer(norAttribChair, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+
+	//// Wspó³rzêdne tekstur
+	//GLint texAttribChair = glGetAttribLocation(shaderProgram, "aTexCoord");
+	//glEnableVertexAttribArray(texAttribChair);
+	//glVertexAttribPointer(texAttribChair, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoord));
+
+	//// Zakoñcz konfiguracjê VAO dla krzes³a
+	//glBindVertexArray(0);
 	// Specifikacja formatu danych wierzcho³kowych
 	GLint posAttrib = glGetAttribLocation(shaderProgram, "position");
 	glEnableVertexAttribArray(posAttrib);
@@ -586,17 +701,25 @@ int main()
 		newFront.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
 		cameraFront = glm::normalize(newFront);
 		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-
-
+		
 		GLint uniView = glGetUniformLocation(shaderProgram, "view");
 		glUniformMatrix4fv(uniView, 1, GL_FALSE, glm::value_ptr(view));
 		/*	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 			glBufferData(GL_ARRAY_BUFFER, ammVertices * 6 * sizeof(GLfloat), *&vertices, GL_STATIC_DRAW);*/
 			// Nadanie scenie koloru czarnego
+
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		setModelColor(shaderProgram, 1.0f, 1.0f, 0.0f); 
+		glUniformMatrix4fv(uniTrans, 1, GL_FALSE, glm::value_ptr(chairModel));
+		glBindVertexArray(vaoChair);
+		glDrawElements(GL_TRIANGLES, chairIndices.size(), GL_UNSIGNED_INT, 0);
+		setModelColor(shaderProgram, 1.0f, 0.0f, 0.0f);
+		glUniformMatrix4fv(uniTrans, 1, GL_FALSE, glm::value_ptr(tableModel));
+		glBindVertexArray(vaoTable);
+		glDrawElements(GL_TRIANGLES, chairIndices.size(), GL_UNSIGNED_INT, 0);
 		// Narysowanie trójk¹ta na podstawie 3 wierzcho³ków
-		glDrawArrays(primitiveType, 0, ammVertices);
+		//glDrawArrays(primitiveType, 0, ammVertices);
 		// Wymiana buforów tylni/przedni
 		glUniform1i(lightingEnabledLocation, lightingEnabled);
 		window.display();
