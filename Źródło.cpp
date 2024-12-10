@@ -398,7 +398,7 @@ int main()
 	// Generowanie figury
 	std::vector<Vertice> chairVertices;
 	std::vector<unsigned int> chairIndices;
-	if (!loadObj("chair2.obj", chairVertices, chairIndices,"Plane")) {
+	if (!loadObj("chair2.obj", chairVertices, chairIndices,"")) {
 		std::cerr << "Failed to load chair model" << std::endl;
 		return -1;
 	}
